@@ -15,12 +15,14 @@ export function formatCurrency(amount: number, currency: string = 'USD') {
 export function calculateOrderMetrics(order: any) {
   const totalCost = (order.source_price || 0) + (order.shipping_cost || 0) + (order.tax_cost || 0) + (order.other_costs || 0);
   const totalFees = (order.marketplace_fees || 0) + (order.transaction_fees || 0) + (order.advertising_cost || 0) + (order.other_fees || 0);
-  const netProfit = (order.sale_price || 0) - totalCost - totalFees;
+  const returnCost = order.is_returned ? (order.return_cost || 0) : 0;
+  const netProfit = (order.sale_price || 0) - totalCost - totalFees - returnCost;
   const profitMargin = order.sale_price > 0 ? (netProfit / order.sale_price) * 100 : 0;
 
   return {
     totalCost,
     totalFees,
+    returnCost,
     netProfit,
     profitMargin
   };

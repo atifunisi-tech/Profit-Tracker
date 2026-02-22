@@ -26,7 +26,9 @@ import {
   ChevronRight,
   Sun,
   Moon,
-  Palette
+  Palette,
+  Package,
+  Maximize2
 } from 'lucide-react';
 import { 
   LineChart, 
@@ -41,12 +43,14 @@ import {
 } from 'recharts';
 import { format } from 'date-fns';
 import { useOrders } from './hooks/useOrders';
-import { Order, MARKETPLACES, CURRENCIES, MARKETPLACE_FEES, THEMES, ThemeType } from './types';
+import { useProducts } from './hooks/useProducts';
+import { Order, Product, MARKETPLACES, CURRENCIES, MARKETPLACE_FEES, THEMES, ThemeType } from './types';
 import { cn, formatCurrency, calculateOrderMetrics } from './utils';
 
 export default function App() {
-  const { orders, stats, loading, addOrder, updateOrder, deleteOrder } = useOrders();
-  const [view, setView] = useState<'dashboard' | 'orders'>('dashboard');
+  const { orders, stats, loading: ordersLoading, addOrder, updateOrder, deleteOrder } = useOrders();
+  const { products, loading: productsLoading, addProduct, updateProduct, deleteProduct } = useProducts();
+  const [view, setView] = useState<'dashboard' | 'orders' | 'products'>('dashboard');
   const [searchQuery, setSearchQuery] = useState('');
   const [filterMarketplace, setFilterMarketplace] = useState('All');
   const [sortBy, setSortBy] = useState<'date' | 'profit' | 'price'>('date');
@@ -57,7 +61,13 @@ export default function App() {
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [currentTheme, setCurrentTheme] = useState<ThemeType>('light');
-  const [defaultCurrency, setDefaultCurrency] = useState('USD');
+  const [isThemeMenuOpen, setIsThemeMenuOpen] = useState(false);
+  const [isProductFormOpen, setIsProductFormOpen] = useState(false);
+  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [isProductDeleteConfirmOpen, setIsProductDeleteConfirmOpen] = useState(false);
+  const [productToDelete, setProductToDelete] = useState<Product | null>(null);
+  const [mobileCardScale, setMobileCardScale] = useState(1);
+  const [isResizerOpen, setIsResizerOpen] = useState(false);
 
   const theme = useMemo(() => THEMES.find(t => t.id === currentTheme) || THEMES[0], [currentTheme]);
 
@@ -191,22 +201,21 @@ export default function App() {
     <div className={cn("min-h-screen transition-colors duration-300", theme.bg, theme.text)}>
       {/* Sidebar / Navigation */}
       <nav className={cn(
-        "fixed left-0 top-0 h-full w-20 md:w-64 border-r flex flex-col items-center md:items-stretch p-4 z-40 transition-colors",
-        theme.card, theme.border
+        "fixed left-0 top-0 bottom-0 w-20 md:w-64 border-r flex flex-col transition-all duration-500 z-40",
+        theme.card, theme.border, theme.id === 'light' ? "shadow-[4px_0_24px_rgba(0,0,0,0.02)]" : "shadow-[4px_0_24px_rgba(0,0,0,0.2)]"
       )}>
-        <div className="flex items-center gap-3 px-2 mb-10">
-          <div className={cn(
-            "w-10 h-10 rounded-xl flex items-center justify-center shadow-lg",
-            theme.accent === 'indigo' ? "bg-indigo-500 shadow-indigo-500/20" : 
-            theme.accent === 'orange' ? "bg-orange-500 shadow-orange-500/20" : 
-            "bg-emerald-500 shadow-emerald-500/20"
-          )}>
-            <TrendingUp className="text-white w-6 h-6" />
+        <div className="p-4 md:p-8 flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl flex items-center justify-center shadow-lg transition-transform duration-500 hover:rotate-12" 
+               style={{ 
+                 backgroundColor: theme.accentColor,
+                 boxShadow: `0 10px 15px -3px ${theme.accentColor}33`
+               }}>
+            <TrendingUp className="text-white" size={24} />
           </div>
-          <h1 className="hidden md:block font-bold text-xl tracking-tight">MarketProfit</h1>
+          <h1 className="hidden md:block text-xl font-bold tracking-tighter">MarketProfit</h1>
         </div>
 
-        <div className="flex flex-col gap-2 flex-1">
+        <div className="flex-1 px-3 md:px-4 space-y-2 py-4">
           <NavButton 
             active={view === 'dashboard'} 
             onClick={() => setView('dashboard')}
@@ -217,43 +226,83 @@ export default function App() {
           <NavButton 
             active={view === 'orders'} 
             onClick={() => setView('orders')}
-            icon={<List size={20} />}
+            icon={<ShoppingCart size={20} />}
             label="Orders"
+            theme={theme}
+          />
+          <NavButton 
+            active={view === 'products'} 
+            onClick={() => setView('products')}
+            icon={<Package size={20} />}
+            label="Catalog"
             theme={theme}
           />
         </div>
 
-        <div className="flex flex-col gap-4 mt-auto">
-          <div className="relative group">
+        <div className="p-4 md:p-6 border-t space-y-4" style={{ borderColor: theme.id === 'light' ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.05)' }}>
+          <div className="relative">
             <button 
+              onClick={() => setIsThemeMenuOpen(!isThemeMenuOpen)}
               className={cn(
-                "w-full p-3 rounded-xl transition-all flex items-center gap-3",
-                theme.id === 'light' ? "hover:bg-black/5 text-black/60" : "hover:bg-white/5 text-white/60"
+                "w-full p-3 rounded-xl flex items-center justify-center md:justify-start gap-3 transition-all duration-300 group",
+                theme.id === 'light' ? "hover:bg-black/5" : "hover:bg-white/5",
+                isThemeMenuOpen && (theme.id === 'light' ? "bg-black/5" : "bg-white/10")
               )}
             >
-              <Palette size={20} />
-              <span className="hidden md:block font-medium">Theme</span>
+              <div className="transition-transform duration-500 group-hover:rotate-180">
+                <Palette size={20} style={{ color: theme.accentColor }} />
+              </div>
+              <span className="hidden md:block font-semibold">Themes</span>
             </button>
-            <div className={cn(
-              "absolute bottom-full left-0 mb-2 w-48 rounded-2xl shadow-2xl border p-2 hidden group-hover:block z-50",
-              theme.card, theme.border
-            )}>
-              {THEMES.map(t => (
-                <button
-                  key={t.id}
-                  onClick={() => setCurrentTheme(t.id)}
-                  className={cn(
-                    "w-full flex items-center gap-3 p-2 rounded-xl transition-all text-sm font-medium",
-                    currentTheme === t.id 
-                      ? (theme.id === 'light' ? "bg-black/5" : "bg-white/10") 
-                      : (theme.id === 'light' ? "hover:bg-black/5" : "hover:bg-white/5")
-                  )}
-                >
-                  <div className={cn("w-4 h-4 rounded-full border", t.bg)} />
-                  {t.name}
-                </button>
-              ))}
-            </div>
+            
+            <AnimatePresence>
+              {isThemeMenuOpen && (
+                <>
+                  <motion.div 
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    onClick={() => setIsThemeMenuOpen(false)}
+                    className="fixed inset-0 z-40"
+                  />
+                  <motion.div 
+                    initial={{ opacity: 0, scale: 0.9, x: 20 }}
+                    animate={{ opacity: 1, scale: 1, x: 0 }}
+                    exit={{ opacity: 0, scale: 0.9, x: 20 }}
+                    className={cn(
+                      "absolute bottom-full left-0 mb-2 w-56 rounded-2xl shadow-2xl border p-2 z-50 overflow-hidden",
+                      theme.card, theme.border
+                    )}
+                  >
+                    <div className="grid grid-cols-1 gap-1">
+                      {THEMES.map((t) => (
+                        <button
+                          key={t.id}
+                          onClick={() => {
+                            setCurrentTheme(t.id);
+                            setIsThemeMenuOpen(false);
+                          }}
+                          className={cn(
+                            "flex items-center justify-between p-2.5 rounded-xl transition-all text-sm font-medium",
+                            currentTheme === t.id 
+                              ? (theme.id === 'light' ? "bg-black/5" : "bg-white/10") 
+                              : (theme.id === 'light' ? "hover:bg-black/5" : "hover:bg-white/5")
+                          )}
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className="w-4 h-4 rounded-full shadow-inner" style={{ backgroundColor: t.accentColor }} />
+                            {t.name}
+                          </div>
+                          {currentTheme === t.id && (
+                            <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: theme.accentColor }} />
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  </motion.div>
+                </>
+              )}
+            </AnimatePresence>
           </div>
           <button 
             onClick={() => {
@@ -261,11 +310,12 @@ export default function App() {
               setIsFormOpen(true);
             }}
             className={cn(
-              "w-full text-white p-3 rounded-xl flex items-center justify-center gap-2 shadow-lg transition-all active:scale-95",
-              theme.accent === 'indigo' ? "bg-indigo-500 shadow-indigo-500/20 hover:bg-indigo-600" : 
-              theme.accent === 'orange' ? "bg-orange-500 shadow-orange-500/20 hover:bg-orange-600" : 
-              "bg-emerald-500 shadow-emerald-500/20 hover:bg-emerald-600"
+              "w-full text-white p-3 rounded-xl flex items-center justify-center gap-2 shadow-lg transition-all duration-300 active:scale-95 hover:brightness-110",
             )}
+            style={{ 
+              backgroundColor: theme.accentColor,
+              boxShadow: `0 10px 15px -3px ${theme.accentColor}33`
+            }}
           >
             <Plus size={20} />
             <span className="hidden md:block font-semibold">New Order</span>
@@ -287,35 +337,33 @@ export default function App() {
               >
                 <header className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                   <div>
-                    <h2 className="text-3xl font-bold tracking-tight">Overview</h2>
-                    <p className={theme.muted}>Track your marketplace performance</p>
+                    <h2 className="text-2xl md:text-3xl font-bold tracking-tight">Overview</h2>
+                    <p className={cn("text-xs md:text-sm", theme.muted)}>Track your marketplace performance</p>
                   </div>
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2 md:gap-3">
                     <div className="relative">
                       <select 
                         value={filterMarketplace}
                         onChange={(e) => setFilterMarketplace(e.target.value)}
                         className={cn(
-                          "appearance-none pl-10 pr-8 py-2 rounded-lg font-medium outline-none focus:ring-2 transition-all cursor-pointer",
-                          theme.accent === 'indigo' ? "ring-indigo-500/20" : 
-                          theme.accent === 'orange' ? "ring-orange-500/20" : 
-                          "ring-emerald-500/20",
+                          "appearance-none pl-8 md:pl-10 pr-6 md:pr-8 py-1.5 md:py-2 rounded-lg text-xs md:text-sm font-medium outline-none focus:ring-2 transition-all cursor-pointer",
                           theme.id === 'light' ? "bg-white border-black/5 text-[#1A1A1A] shadow-sm" : cn(theme.card, theme.border, theme.text)
                         )}
+                        style={{ '--tw-ring-color': `${theme.accentColor}33` } as any}
                       >
                         <option value="All">All Marketplaces</option>
                         {MARKETPLACES.map(m => <option key={m} value={m}>{m}</option>)}
                       </select>
-                      <Filter className="absolute left-3 top-1/2 -translate-y-1/2 opacity-50" size={16} />
+                      <Filter className={cn("absolute left-2.5 top-1/2 -translate-y-1/2 opacity-50", "md:w-4 md:h-4")} size={14} />
                     </div>
                     <button 
                       onClick={handleExport}
                       className={cn(
-                        "flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all border",
+                        "flex items-center gap-1.5 md:gap-2 px-3 py-1.5 md:px-4 md:py-2 rounded-lg text-xs md:text-sm font-medium transition-all border",
                         theme.id === 'light' ? "bg-white hover:bg-gray-50 border-black/5" : cn(theme.card, theme.border, "hover:bg-white/5")
                       )}
                     >
-                      <Download size={18} />
+                      <Download size={16} className="md:w-[18px] md:h-[18px]" />
                       Export CSV
                     </button>
                   </div>
@@ -325,9 +373,10 @@ export default function App() {
                   <StatCard 
                     label="Total Revenue" 
                     value={formatCurrency(filteredStats.totalRevenue)} 
-                    icon={<DollarSign className={theme.accent === 'indigo' ? "text-indigo-400" : theme.accent === 'orange' ? "text-orange-400" : "text-emerald-500"} />}
+                    icon={<DollarSign style={{ color: theme.accentColor }} />}
                     onClick={() => setSelectedStat('revenue')}
                     theme={theme}
+                    scale={mobileCardScale}
                   />
                   <StatCard 
                     label="Net Profit" 
@@ -336,20 +385,23 @@ export default function App() {
                     trend={filteredStats.totalRevenue ? ((filteredStats.totalProfit / filteredStats.totalRevenue) * 100).toFixed(1) + '%' : '0%'}
                     onClick={() => setSelectedStat('profit')}
                     theme={theme}
+                    scale={mobileCardScale}
                   />
                   <StatCard 
                     label="Total Orders" 
                     value={filteredStats.totalOrders} 
-                    icon={<ShoppingCart className="text-orange-500" />}
+                    icon={<ShoppingCart style={{ color: theme.accentColor }} />}
                     onClick={() => setSelectedStat('orders')}
                     theme={theme}
+                    scale={mobileCardScale}
                   />
                   <StatCard 
                     label="Profit (Month)" 
                     value={formatCurrency(filteredStats.profitThisMonth)} 
-                    icon={<ArrowUpRight className="text-purple-500" />}
+                    icon={<ArrowUpRight style={{ color: theme.accentColor }} />}
                     onClick={() => setSelectedStat('monthly')}
                     theme={theme}
+                    scale={mobileCardScale}
                   />
                 </div>
 
@@ -365,8 +417,8 @@ export default function App() {
                         <AreaChart data={filteredOrders.slice().reverse()}>
                           <defs>
                             <linearGradient id="colorProfit" x1="0" y1="0" x2="0" y2="1">
-                              <stop offset="5%" stopColor={theme.accent === 'indigo' ? "#6366f1" : theme.accent === 'orange' ? "#f97316" : "#10b981"} stopOpacity={0.3}/>
-                              <stop offset="95%" stopColor={theme.accent === 'indigo' ? "#6366f1" : theme.accent === 'orange' ? "#f97316" : "#10b981"} stopOpacity={0}/>
+                              <stop offset="5%" stopColor={theme.accentColor} stopOpacity={0.3}/>
+                              <stop offset="95%" stopColor={theme.accentColor} stopOpacity={0}/>
                             </linearGradient>
                           </defs>
                           <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={theme.id === 'light' ? "#00000010" : "#ffffff10"} />
@@ -393,7 +445,7 @@ export default function App() {
                             type="monotone" 
                             dataKey={(o) => calculateOrderMetrics(o).netProfit} 
                             name="Profit"
-                            stroke={theme.accent === 'indigo' ? "#6366f1" : theme.accent === 'orange' ? "#f97316" : "#10b981"}
+                            stroke={theme.accentColor}
                             fillOpacity={1} 
                             fill="url(#colorProfit)" 
                             strokeWidth={2}
@@ -424,12 +476,8 @@ export default function App() {
                               <motion.div 
                                 initial={{ width: 0 }}
                                 animate={{ width: `${Math.max(0, percentage)}%` }}
-                                className={cn(
-                                  "h-full rounded-full",
-                                  theme.accent === 'indigo' ? "bg-indigo-500" : 
-                                  theme.accent === 'orange' ? "bg-orange-500" : 
-                                  "bg-emerald-500"
-                                )}
+                                className="h-full rounded-full"
+                                style={{ backgroundColor: theme.accentColor }}
                               />
                             </div>
                           </div>
@@ -439,7 +487,7 @@ export default function App() {
                   </div>
                 </div>
               </motion.div>
-            ) : (
+            ) : view === 'orders' ? (
               <motion.div 
                 key="orders"
                 initial={{ opacity: 0, y: 20 }}
@@ -449,36 +497,32 @@ export default function App() {
               >
                 <header className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                   <div>
-                    <h2 className="text-3xl font-bold tracking-tight">Orders</h2>
-                    <p className={theme.muted}>{filteredOrders.length} orders found</p>
+                    <h2 className="text-2xl md:text-3xl font-bold tracking-tight">Orders</h2>
+                    <p className={cn("text-xs md:text-sm", theme.muted)}>{filteredOrders.length} orders found</p>
                   </div>
-                  <div className="flex flex-wrap items-center gap-3">
+                  <div className="flex flex-wrap items-center gap-2 md:gap-3">
                     <div className="relative flex-1 md:w-64">
-                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 opacity-50" size={18} />
+                      <Search className={cn("absolute left-3 top-1/2 -translate-y-1/2 opacity-50", "md:w-[18px] md:h-[18px]")} size={16} />
                       <input 
                         type="text" 
                         placeholder="Search orders..." 
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
                         className={cn(
-                          "w-full pl-10 pr-4 py-2 rounded-lg outline-none focus:ring-2 transition-all",
-                          theme.accent === 'indigo' ? "ring-indigo-500/20" : 
-                          theme.accent === 'orange' ? "ring-orange-500/20" : 
-                          "ring-emerald-500/20",
+                          "w-full pl-9 md:pl-10 pr-4 py-1.5 md:py-2 rounded-lg text-xs md:text-sm outline-none focus:ring-2 transition-all",
                           theme.id === 'light' ? "bg-white border border-black/5 shadow-sm" : cn(theme.card, theme.border)
                         )}
+                        style={{ '--tw-ring-color': `${theme.accentColor}33` } as any}
                       />
                     </div>
                     <select 
                       value={filterMarketplace}
                       onChange={(e) => setFilterMarketplace(e.target.value)}
                       className={cn(
-                        "px-4 py-2 rounded-lg font-medium outline-none focus:ring-2 transition-all cursor-pointer border",
-                        theme.accent === 'indigo' ? "ring-indigo-500/20" : 
-                        theme.accent === 'orange' ? "ring-orange-500/20" : 
-                        "ring-emerald-500/20",
+                        "px-3 py-1.5 md:px-4 md:py-2 rounded-lg text-xs md:text-sm font-medium outline-none focus:ring-2 transition-all cursor-pointer border",
                         theme.id === 'light' ? "bg-white border-black/5 shadow-sm" : cn(theme.card, theme.border)
                       )}
+                      style={{ '--tw-ring-color': `${theme.accentColor}33` } as any}
                     >
                       <option value="All">All Marketplaces</option>
                       {MARKETPLACES.map(m => <option key={m} value={m}>{m}</option>)}
@@ -487,12 +531,10 @@ export default function App() {
                       value={sortBy}
                       onChange={(e) => setSortBy(e.target.value as any)}
                       className={cn(
-                        "px-4 py-2 rounded-lg font-medium outline-none focus:ring-2 transition-all cursor-pointer border",
-                        theme.accent === 'indigo' ? "ring-indigo-500/20" : 
-                        theme.accent === 'orange' ? "ring-orange-500/20" : 
-                        "ring-emerald-500/20",
+                        "px-3 py-1.5 md:px-4 md:py-2 rounded-lg text-xs md:text-sm font-medium outline-none focus:ring-2 transition-all cursor-pointer border",
                         theme.id === 'light' ? "bg-white border-black/5 shadow-sm" : cn(theme.card, theme.border)
                       )}
+                      style={{ '--tw-ring-color': `${theme.accentColor}33` } as any}
                     >
                       <option value="date">Newest First</option>
                       <option value="profit">Highest Profit</option>
@@ -508,6 +550,7 @@ export default function App() {
                       order={order} 
                       onClick={() => setSelectedOrder(order)}
                       theme={theme}
+                      scale={mobileCardScale}
                     />
                   ))}
                   {filteredOrders.length === 0 && (
@@ -517,6 +560,63 @@ export default function App() {
                       </div>
                       <h3 className="text-lg font-semibold">No orders found</h3>
                       <p className={theme.muted}>Try adjusting your search or filters</p>
+                    </div>
+                  )}
+                </div>
+              </motion.div>
+            ) : (
+              <motion.div 
+                key="products"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                className="space-y-6"
+              >
+                <header className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                  <div>
+                    <h2 className="text-2xl md:text-3xl font-bold tracking-tight">Product Catalog</h2>
+                    <p className={cn("text-xs md:text-sm", theme.muted)}>{products.length} products in your catalog</p>
+                  </div>
+                  <button 
+                    onClick={() => {
+                      setEditingProduct(null);
+                      setIsProductFormOpen(true);
+                    }}
+                    className="flex items-center gap-2 px-4 py-2 md:px-6 md:py-2.5 text-xs md:text-sm text-white rounded-xl font-bold shadow-lg transition-all active:scale-95"
+                    style={{ 
+                      backgroundColor: theme.accentColor,
+                      boxShadow: `0 10px 15px -3px ${theme.accentColor}33`
+                    }}
+                  >
+                    <Plus size={16} className="md:w-5 md:h-5" />
+                    Add Product
+                  </button>
+                </header>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                  {products.map((product) => (
+                    <ProductCard 
+                      key={product.id} 
+                      product={product} 
+                      onEdit={() => {
+                        setEditingProduct(product);
+                        setIsProductFormOpen(true);
+                      }}
+                      onDelete={() => {
+                        setProductToDelete(product);
+                        setIsProductDeleteConfirmOpen(true);
+                      }}
+                      theme={theme}
+                      scale={mobileCardScale}
+                    />
+                  ))}
+                  {products.length === 0 && (
+                    <div className="col-span-full py-20 text-center">
+                      <div className={cn("inline-flex items-center justify-center w-16 h-16 rounded-full mb-4", theme.id === 'light' ? "bg-gray-100" : "bg-white/5")}>
+                        <Package className="text-gray-400" />
+                      </div>
+                      <h3 className="text-lg font-semibold">Catalog is empty</h3>
+                      <p className={theme.muted}>Start adding products to your catalog</p>
                     </div>
                   )}
                 </div>
@@ -545,6 +645,8 @@ export default function App() {
               setEditingOrder(null);
             }}
             theme={theme}
+            products={products}
+            onSaveProduct={addProduct}
           />
         )}
       </AnimatePresence>
@@ -598,6 +700,97 @@ export default function App() {
           />
         )}
       </AnimatePresence>
+
+      {/* Product Form Modal */}
+      <AnimatePresence>
+        {isProductFormOpen && (
+          <ProductFormModal 
+            product={editingProduct}
+            onClose={() => {
+              setIsProductFormOpen(false);
+              setEditingProduct(null);
+            }}
+            onSubmit={async (data) => {
+              if (editingProduct?.id) {
+                await updateProduct(editingProduct.id, data);
+              } else {
+                await addProduct(data);
+              }
+              setIsProductFormOpen(false);
+              setEditingProduct(null);
+            }}
+            theme={theme}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Product Delete Confirmation Modal */}
+      <AnimatePresence>
+        {isProductDeleteConfirmOpen && productToDelete && (
+          <ConfirmationModal 
+            title="Delete Product"
+            message={`Are you sure you want to delete "${productToDelete.name}" from your catalog? This will not affect existing orders.`}
+            onConfirm={async () => {
+              await deleteProduct(productToDelete.id);
+              setIsProductDeleteConfirmOpen(false);
+              setProductToDelete(null);
+            }}
+            onCancel={() => {
+              setIsProductDeleteConfirmOpen(false);
+              setProductToDelete(null);
+            }}
+            theme={theme}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Mobile Resizer FAB */}
+      <div className="md:hidden fixed bottom-6 right-6 z-50 flex flex-col items-end gap-3">
+        <AnimatePresence>
+          {isResizerOpen && (
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.8, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.8, y: 20 }}
+              className={cn(
+                "p-4 rounded-2xl shadow-2xl border mb-2 w-48",
+                theme.card, theme.border
+              )}
+            >
+              <div className="flex flex-col gap-3">
+                <div className="flex justify-between items-center">
+                  <span className="text-xs font-bold uppercase opacity-50">Card Size</span>
+                  <span className="text-xs font-bold">{Math.round(mobileCardScale * 100)}%</span>
+                </div>
+                <input 
+                  type="range" 
+                  min="0.7" 
+                  max="1.3" 
+                  step="0.05"
+                  value={mobileCardScale}
+                  onChange={(e) => setMobileCardScale(parseFloat(e.target.value))}
+                  className="w-full h-1.5 rounded-lg appearance-none cursor-pointer accent-emerald-500 bg-black/10 dark:bg-white/10"
+                  style={{ accentColor: theme.accentColor }}
+                />
+                <div className="flex justify-between text-[10px] opacity-50 font-bold">
+                  <span>Small</span>
+                  <span>Large</span>
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+        <button 
+          onClick={() => setIsResizerOpen(!isResizerOpen)}
+          className="w-14 h-14 rounded-full flex items-center justify-center text-white shadow-2xl transition-all active:scale-95"
+          style={{ 
+            backgroundColor: theme.accentColor,
+            boxShadow: `0 10px 25px -5px ${theme.accentColor}66`
+          }}
+        >
+          {isResizerOpen ? <X size={24} /> : <Maximize2 size={24} />}
+        </button>
+      </div>
     </div>
   );
 }
@@ -706,7 +899,7 @@ function StatsDetailModal({ type, orders, onClose, theme }: { type: 'revenue' | 
                 <Area 
                   type="monotone" 
                   dataKey="value" 
-                  stroke={theme.accent === 'indigo' ? "#6366f1" : theme.accent === 'orange' ? "#f97316" : "#10b981"}
+                  stroke={theme.accentColor}
                   fillOpacity={1} 
                   fill="url(#colorValue)" 
                   strokeWidth={2}
@@ -790,48 +983,65 @@ function NavButton({ active, onClick, icon, label, theme }: { active: boolean, o
     <button 
       onClick={onClick}
       className={cn(
-        "flex items-center gap-3 p-3 rounded-xl transition-all w-full",
+        "flex items-center gap-3 p-3 rounded-xl transition-all duration-300 w-full group relative overflow-hidden",
         active 
-          ? (theme.id === 'light' ? "bg-emerald-50 text-emerald-600" : "bg-white/10 text-white") 
+          ? (theme.id === 'light' ? "bg-black/5" : "bg-white/10") 
           : (theme.id === 'light' ? "text-black/50 hover:bg-black/5" : "text-white/50 hover:bg-white/5")
       )}
     >
-      {icon}
+      {active && (
+        <motion.div 
+          layoutId="nav-active"
+          className="absolute left-0 top-0 bottom-0 w-1"
+          style={{ backgroundColor: theme.accentColor }}
+        />
+      )}
+      <div className="transition-transform duration-300 group-hover:scale-110" style={{ color: active ? theme.accentColor : 'inherit' }}>
+        {icon}
+      </div>
       <span className="hidden md:block font-semibold">{label}</span>
     </button>
   );
 }
 
-function StatCard({ label, value, icon, trend, theme, onClick }: { label: string, value: string | number, icon: React.ReactNode, trend?: string, theme: any, onClick?: () => void }) {
+function StatCard({ label, value, icon, trend, theme, onClick, scale = 1 }: { label: string, value: string | number, icon: React.ReactNode, trend?: string, theme: any, onClick?: () => void, scale?: number }) {
   return (
     <div 
       onClick={onClick}
       className={cn(
-        "p-6 rounded-2xl border transition-all hover:scale-[1.02]",
+        "rounded-2xl border transition-all duration-500 hover:shadow-xl hover:shadow-black/5 group",
         onClick && "cursor-pointer",
         theme.card, theme.border, theme.id === 'light' && "shadow-sm"
       )}
+      style={{ 
+        padding: `${1 * scale}rem`,
+      }}
     >
-      <div className="flex justify-between items-start mb-4">
+      <div className="flex justify-between items-start" style={{ marginBottom: `${0.75 * scale}rem` }}>
         <div className={cn(
-          "w-10 h-10 rounded-xl flex items-center justify-center",
+          "rounded-xl flex items-center justify-center transition-transform duration-500 group-hover:rotate-12",
           theme.id === 'light' ? "bg-gray-50" : "bg-white/5"
-        )}>
-          {icon}
+        )}
+        style={{ 
+          width: `${2 * scale}rem`, 
+          height: `${2 * scale}rem` 
+        }}
+        >
+          {React.isValidElement(icon) ? React.cloneElement(icon as React.ReactElement, { size: 18 * scale, className: "md:w-5 md:h-5" } as any) : icon}
         </div>
         {trend && (
-          <span className="text-xs font-bold text-emerald-500 bg-emerald-500/10 px-2 py-1 rounded-full">
+          <span className="font-bold text-emerald-500 bg-emerald-500/10 rounded-full transition-all duration-300 group-hover:px-3" style={{ fontSize: `${0.625 * scale}rem`, padding: `${0.25 * scale}rem ${0.5 * scale}rem` }}>
             {trend}
           </span>
         )}
       </div>
-      <p className={cn("text-sm font-medium mb-1", theme.muted)}>{label}</p>
-      <h4 className="text-2xl font-bold tracking-tight">{value}</h4>
+      <p className={cn("font-medium transition-opacity duration-300 group-hover:opacity-100", theme.muted)} style={{ fontSize: `${0.75 * scale}rem`, marginBottom: `${0.25 * scale}rem`, opacity: 0.7 }}>{label}</p>
+      <h4 className="font-bold tracking-tight transition-transform duration-500 group-hover:translate-x-1" style={{ fontSize: `${1.25 * scale}rem` }}>{value}</h4>
     </div>
   );
 }
 
-function OrderCard({ order, onClick, theme }: { order: Order, onClick: () => void, theme: any, key?: any }) {
+function OrderCard({ order, onClick, theme, scale = 1 }: { order: Order, onClick: () => void, theme: any, key?: any, scale?: number }) {
   const { netProfit, profitMargin } = calculateOrderMetrics(order);
   const isProfitable = netProfit > 0;
 
@@ -839,49 +1049,61 @@ function OrderCard({ order, onClick, theme }: { order: Order, onClick: () => voi
     <motion.div 
       layout
       onClick={onClick}
+      whileHover={{ y: -4 }}
       className={cn(
-        "p-5 rounded-2xl border cursor-pointer transition-all hover:shadow-xl group",
+        "rounded-2xl border cursor-pointer transition-all duration-300 hover:shadow-2xl group",
         theme.card, theme.border, theme.id === 'light' ? "shadow-sm hover:shadow-black/5" : "hover:bg-white/5"
       )}
+      style={{ padding: `${1 * scale}rem` }}
     >
-      <div className="flex justify-between items-start mb-4">
+      <div className="flex justify-between items-start" style={{ marginBottom: `${0.75 * scale}rem` }}>
         <div>
-          <span className={cn(
-            "text-[10px] uppercase tracking-widest font-bold px-2 py-1 rounded-md mb-2 inline-block",
-            theme.id === 'light' ? "bg-gray-100 text-gray-600" : "bg-white/5 text-white/60"
-          )}>
-            {order.marketplace}
-          </span>
-          <h4 className={cn(
-            "font-bold text-lg line-clamp-1 transition-colors",
-            theme.accent === 'indigo' ? "group-hover:text-indigo-500" : 
-            theme.accent === 'orange' ? "group-hover:text-orange-500" : 
-            "group-hover:text-emerald-500"
-          )}>{order.product_name}</h4>
+          <div className="flex items-center mb-1.5 md:mb-2" style={{ gap: `${0.5 * scale}rem` }}>
+            <span className={cn(
+              "uppercase tracking-widest font-bold rounded-md inline-block transition-colors duration-300 group-hover:bg-opacity-80",
+              theme.id === 'light' ? "bg-gray-100 text-gray-600" : "bg-white/5 text-white/60"
+            )}
+            style={{ fontSize: `${0.5625 * scale}rem`, padding: `${0.125 * scale}rem ${0.375 * scale}rem` }}
+            >
+              {order.marketplace}
+            </span>
+            {order.is_returned && (
+              <span className="uppercase tracking-widest font-bold rounded-md bg-red-500/10 text-red-500 inline-block animate-pulse"
+              style={{ fontSize: `${0.5625 * scale}rem`, padding: `${0.125 * scale}rem ${0.375 * scale}rem` }}
+              >
+                Returned
+              </span>
+            )}
+          </div>
+          <h4 className="font-bold line-clamp-1 transition-all duration-300 group-hover:translate-x-1"
+          style={{ color: theme.accentColor, fontSize: `${1 * scale}rem` }}
+          >{order.product_name}</h4>
         </div>
         <div className="text-right">
-          <p className={cn("text-xs mb-1", theme.muted)}>{format(new Date(order.date), 'MMM d, yyyy')}</p>
+          <p className={cn("mb-1 transition-opacity duration-300 group-hover:opacity-100", theme.muted)} style={{ fontSize: `${0.625 * scale}rem`, opacity: 0.6 }}>{format(new Date(order.date), 'MMM d')}</p>
           <div className={cn(
-            "text-xs font-bold px-2 py-1 rounded-full inline-block",
-            isProfitable ? "text-emerald-500 bg-emerald-500/10" : "text-red-500 bg-red-500/10"
-          )}>
+            "font-bold transition-transform duration-300 group-hover:scale-110 origin-right",
+            isProfitable ? "text-emerald-500" : "text-red-500"
+          )}
+          style={{ fontSize: `${1 * scale}rem` }}
+          >
             {profitMargin.toFixed(1)}%
           </div>
         </div>
       </div>
 
-      <div className={cn("grid grid-cols-3 gap-4 border-t border-dashed pt-4", theme.border)}>
+      <div className={cn("grid grid-cols-3 border-t border-dashed transition-colors duration-300 group-hover:border-solid", theme.border)} style={{ gap: `${0.5 * scale}rem`, paddingTop: `${0.75 * scale}rem` }}>
         <div>
-          <p className={cn("text-[10px] uppercase font-bold mb-1", theme.muted)}>Sale</p>
-          <p className="font-bold">{formatCurrency(order.sale_price)}</p>
+          <p className={cn("uppercase font-bold opacity-50", theme.muted)} style={{ fontSize: `${0.5625 * scale}rem`, marginBottom: `${0.125 * scale}rem` }}>Sale</p>
+          <p className="font-bold transition-all duration-300 group-hover:text-emerald-500" style={{ fontSize: `${0.875 * scale}rem` }}>{formatCurrency(order.sale_price)}</p>
         </div>
         <div>
-          <p className={cn("text-[10px] uppercase font-bold mb-1", theme.muted)}>Cost</p>
-          <p className="font-bold">{formatCurrency(calculateOrderMetrics(order).totalCost)}</p>
+          <p className={cn("uppercase font-bold opacity-50", theme.muted)} style={{ fontSize: `${0.5625 * scale}rem`, marginBottom: `${0.125 * scale}rem` }}>Cost</p>
+          <p className="font-bold" style={{ fontSize: `${0.875 * scale}rem` }}>{formatCurrency(calculateOrderMetrics(order).totalCost)}</p>
         </div>
         <div className="text-right">
-          <p className={cn("text-[10px] uppercase font-bold mb-1", theme.muted)}>Profit</p>
-          <p className={cn("font-bold", isProfitable ? "text-emerald-500" : "text-red-500")}>
+          <p className={cn("uppercase font-bold opacity-50", theme.muted)} style={{ fontSize: `${0.5625 * scale}rem`, marginBottom: `${0.125 * scale}rem` }}>Profit</p>
+          <p className={cn("font-bold transition-all duration-300 group-hover:scale-110 origin-right", isProfitable ? "text-emerald-500" : "text-red-500")} style={{ fontSize: `${0.875 * scale}rem` }}>
             {formatCurrency(netProfit)}
           </p>
         </div>
@@ -890,7 +1112,8 @@ function OrderCard({ order, onClick, theme }: { order: Order, onClick: () => voi
   );
 }
 
-function OrderFormModal({ order, onClose, onSubmit, theme }: { order: Order | null, onClose: () => void, onSubmit: (data: Order) => void, theme: any }) {
+function OrderFormModal({ order, onClose, onSubmit, theme, products, onSaveProduct }: { order: Order | null, onClose: () => void, onSubmit: (data: Order) => void, theme: any, products: Product[], onSaveProduct?: (product: Omit<Product, 'id'>) => void }) {
+  const [saveToCatalog, setSaveToCatalog] = useState(false);
   const [formData, setFormData] = useState<Order>(order || {
     product_name: '',
     order_id: '',
@@ -908,7 +1131,9 @@ function OrderFormModal({ order, onClose, onSubmit, theme }: { order: Order | nu
     transaction_fees: 0,
     advertising_cost: 0,
     other_fees: 0,
-    currency: 'USD'
+    currency: 'USD',
+    is_returned: false,
+    return_cost: 0
   });
 
   const metrics = calculateOrderMetrics(formData);
@@ -946,17 +1171,62 @@ function OrderFormModal({ order, onClose, onSubmit, theme }: { order: Order | nu
           theme.card, theme.text
         )}
       >
-        <div className={cn("p-6 border-b flex justify-between items-center", theme.border)}>
-          <h3 className="text-xl font-bold">{order ? 'Edit Order' : 'New Order'}</h3>
+        <div className={cn("p-4 md:p-6 border-b flex justify-between items-center", theme.border)}>
+          <h3 className="text-lg md:text-xl font-bold">{order ? 'Edit Order' : 'New Order'}</h3>
           <button onClick={onClose} className={cn("p-2 rounded-full transition-colors", theme.id === 'light' ? "hover:bg-black/5" : "hover:bg-white/5")}>
-            <X size={20} />
+            <X size={18} className="md:w-5 md:h-5" />
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-6 space-y-8">
+        <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-6 md:space-y-8">
+          {/* Section: Product Selection */}
+          {!order && products.length > 0 && (
+            <section className="space-y-4">
+              <h4 className="text-sm font-bold uppercase tracking-widest" style={{ color: theme.accentColor }}>Select from Catalog</h4>
+              <div className="space-y-1">
+                <select 
+                  onChange={(e) => {
+                    const product = products.find(p => p.id === e.target.value);
+                    if (product) {
+                      setFormData(prev => ({
+                        ...prev,
+                        product_name: product.name,
+                        source_price: product.source_price,
+                        sale_price: product.sale_price,
+                        source_link: product.source_link || '',
+                        marketplace_fees: product.marketplace_fees || prev.marketplace_fees
+                      }));
+                    }
+                  }}
+                  className={cn("w-full p-3 rounded-xl border outline-none focus:ring-2 transition-all", theme.id === 'light' ? "bg-gray-50 border-black/5" : "bg-white/5 border-white/10")}
+                  style={{ '--tw-ring-color': `${theme.accentColor}33` } as any}
+                >
+                  <option value="">-- Select a product --</option>
+                  {products.map(p => (
+                    <option key={p.id} value={p.id}>{p.name} ({formatCurrency(p.sale_price)})</option>
+                  ))}
+                </select>
+              </div>
+            </section>
+          )}
+
           {/* Section: Basic Info */}
           <section className="space-y-4">
-            <h4 className="text-sm font-bold uppercase tracking-widest text-emerald-500">Basic Information</h4>
+            <div className="flex justify-between items-center">
+              <h4 className="text-sm font-bold uppercase tracking-widest" style={{ color: theme.accentColor }}>Basic Information</h4>
+              {!order && (
+                <div className="flex items-center gap-2">
+                  <input 
+                    type="checkbox" 
+                    id="saveToCatalog"
+                    checked={saveToCatalog}
+                    onChange={e => setSaveToCatalog(e.target.checked)}
+                    className="w-4 h-4 rounded accent-emerald-500 cursor-pointer"
+                  />
+                  <label htmlFor="saveToCatalog" className="text-xs font-semibold cursor-pointer opacity-70">Save to Catalog</label>
+                </div>
+              )}
+            </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-1">
                 <label className="text-xs font-semibold opacity-50">Product Name</label>
@@ -965,7 +1235,8 @@ function OrderFormModal({ order, onClose, onSubmit, theme }: { order: Order | nu
                   required
                   value={formData.product_name}
                   onChange={e => setFormData({...formData, product_name: e.target.value})}
-                  className={cn("w-full p-3 rounded-xl border outline-none focus:ring-2 transition-all", theme.accent === 'indigo' ? "ring-indigo-500/20" : theme.accent === 'orange' ? "ring-orange-500/20" : "ring-emerald-500/20", theme.id === 'light' ? "bg-gray-50 border-black/5" : "bg-white/5 border-white/10")}
+                  className={cn("w-full p-3 rounded-xl border outline-none focus:ring-2 transition-all", theme.id === 'light' ? "bg-gray-50 border-black/5" : "bg-white/5 border-white/10")}
+                  style={{ '--tw-ring-color': `${theme.accentColor}33` } as any}
                 />
               </div>
               <div className="space-y-1">
@@ -975,7 +1246,8 @@ function OrderFormModal({ order, onClose, onSubmit, theme }: { order: Order | nu
                   required
                   value={formData.order_id}
                   onChange={e => setFormData({...formData, order_id: e.target.value})}
-                  className={cn("w-full p-3 rounded-xl border outline-none focus:ring-2 transition-all", theme.accent === 'indigo' ? "ring-indigo-500/20" : theme.accent === 'orange' ? "ring-orange-500/20" : "ring-emerald-500/20", theme.id === 'light' ? "bg-gray-50 border-black/5" : "bg-white/5 border-white/10")}
+                  className={cn("w-full p-3 rounded-xl border outline-none focus:ring-2 transition-all", theme.id === 'light' ? "bg-gray-50 border-black/5" : "bg-white/5 border-white/10")}
+                  style={{ '--tw-ring-color': `${theme.accentColor}33` } as any}
                 />
               </div>
               <div className="space-y-1">
@@ -983,7 +1255,8 @@ function OrderFormModal({ order, onClose, onSubmit, theme }: { order: Order | nu
                 <select 
                   value={formData.marketplace}
                   onChange={e => setFormData({...formData, marketplace: e.target.value})}
-                  className={cn("w-full p-3 rounded-xl border outline-none focus:ring-2 transition-all", theme.accent === 'indigo' ? "ring-indigo-500/20" : theme.accent === 'orange' ? "ring-orange-500/20" : "ring-emerald-500/20", theme.id === 'light' ? "bg-gray-50 border-black/5" : "bg-white/5 border-white/10")}
+                  className={cn("w-full p-3 rounded-xl border outline-none focus:ring-2 transition-all", theme.id === 'light' ? "bg-gray-50 border-black/5" : "bg-white/5 border-white/10")}
+                  style={{ '--tw-ring-color': `${theme.accentColor}33` } as any}
                 >
                   {MARKETPLACES.map(m => <option key={m} value={m}>{m}</option>)}
                 </select>
@@ -994,7 +1267,8 @@ function OrderFormModal({ order, onClose, onSubmit, theme }: { order: Order | nu
                   type="text" 
                   value={formData.customer_name}
                   onChange={e => setFormData({...formData, customer_name: e.target.value})}
-                  className={cn("w-full p-3 rounded-xl border outline-none focus:ring-2 transition-all", theme.accent === 'indigo' ? "ring-indigo-500/20" : theme.accent === 'orange' ? "ring-orange-500/20" : "ring-emerald-500/20", theme.id === 'light' ? "bg-gray-50 border-black/5" : "bg-white/5 border-white/10")}
+                  className={cn("w-full p-3 rounded-xl border outline-none focus:ring-2 transition-all", theme.id === 'light' ? "bg-gray-50 border-black/5" : "bg-white/5 border-white/10")}
+                  style={{ '--tw-ring-color': `${theme.accentColor}33` } as any}
                 />
               </div>
             </div>
@@ -1002,7 +1276,7 @@ function OrderFormModal({ order, onClose, onSubmit, theme }: { order: Order | nu
 
           {/* Section: Sourcing */}
           <section className="space-y-4">
-            <h4 className="text-sm font-bold uppercase tracking-widest text-blue-500">Sourcing Details</h4>
+            <h4 className="text-sm font-bold uppercase tracking-widest" style={{ color: theme.accentColor }}>Sourcing Details</h4>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-1 md:col-span-2">
                 <label className="text-xs font-semibold opacity-50">Source Product Link</label>
@@ -1010,7 +1284,8 @@ function OrderFormModal({ order, onClose, onSubmit, theme }: { order: Order | nu
                   type="url" 
                   value={formData.source_link}
                   onChange={e => setFormData({...formData, source_link: e.target.value})}
-                  className={cn("w-full p-3 rounded-xl border outline-none focus:ring-2 transition-all", theme.accent === 'indigo' ? "ring-indigo-500/20" : theme.accent === 'orange' ? "ring-orange-500/20" : "ring-emerald-500/20", theme.id === 'light' ? "bg-gray-50 border-black/5" : "bg-white/5 border-white/10")}
+                  className={cn("w-full p-3 rounded-xl border outline-none focus:ring-2 transition-all", theme.id === 'light' ? "bg-gray-50 border-black/5" : "bg-white/5 border-white/10")}
+                  style={{ '--tw-ring-color': `${theme.accentColor}33` } as any}
                 />
               </div>
               <div className="space-y-1">
@@ -1019,7 +1294,8 @@ function OrderFormModal({ order, onClose, onSubmit, theme }: { order: Order | nu
                   type="number" 
                   value={formData.source_price}
                   onChange={e => setFormData({...formData, source_price: parseFloat(e.target.value) || 0})}
-                  className={cn("w-full p-3 rounded-xl border outline-none focus:ring-2 transition-all", theme.accent === 'indigo' ? "ring-indigo-500/20" : theme.accent === 'orange' ? "ring-orange-500/20" : "ring-emerald-500/20", theme.id === 'light' ? "bg-gray-50 border-black/5" : "bg-white/5 border-white/10")}
+                  className={cn("w-full p-3 rounded-xl border outline-none focus:ring-2 transition-all", theme.id === 'light' ? "bg-gray-50 border-black/5" : "bg-white/5 border-white/10")}
+                  style={{ '--tw-ring-color': `${theme.accentColor}33` } as any}
                 />
               </div>
               <div className="space-y-1">
@@ -1028,7 +1304,8 @@ function OrderFormModal({ order, onClose, onSubmit, theme }: { order: Order | nu
                   type="number" 
                   value={formData.shipping_cost}
                   onChange={e => setFormData({...formData, shipping_cost: parseFloat(e.target.value) || 0})}
-                  className={cn("w-full p-3 rounded-xl border outline-none focus:ring-2 transition-all", theme.accent === 'indigo' ? "ring-indigo-500/20" : theme.accent === 'orange' ? "ring-orange-500/20" : "ring-emerald-500/20", theme.id === 'light' ? "bg-gray-50 border-black/5" : "bg-white/5 border-white/10")}
+                  className={cn("w-full p-3 rounded-xl border outline-none focus:ring-2 transition-all", theme.id === 'light' ? "bg-gray-50 border-black/5" : "bg-white/5 border-white/10")}
+                  style={{ '--tw-ring-color': `${theme.accentColor}33` } as any}
                 />
               </div>
             </div>
@@ -1036,7 +1313,7 @@ function OrderFormModal({ order, onClose, onSubmit, theme }: { order: Order | nu
 
           {/* Section: Selling */}
           <section className="space-y-4">
-            <h4 className="text-sm font-bold uppercase tracking-widest text-orange-500">Selling Details</h4>
+            <h4 className="text-sm font-bold uppercase tracking-widest" style={{ color: theme.accentColor }}>Selling Details</h4>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-1">
                 <label className="text-xs font-semibold opacity-50">Sale Price</label>
@@ -1044,7 +1321,8 @@ function OrderFormModal({ order, onClose, onSubmit, theme }: { order: Order | nu
                   type="number" 
                   value={formData.sale_price}
                   onChange={e => setFormData({...formData, sale_price: parseFloat(e.target.value) || 0})}
-                  className={cn("w-full p-3 rounded-xl border outline-none focus:ring-2 transition-all", theme.accent === 'indigo' ? "ring-indigo-500/20" : theme.accent === 'orange' ? "ring-orange-500/20" : "ring-emerald-500/20", theme.id === 'light' ? "bg-gray-50 border-black/5" : "bg-white/5 border-white/10")}
+                  className={cn("w-full p-3 rounded-xl border outline-none focus:ring-2 transition-all", theme.id === 'light' ? "bg-gray-50 border-black/5" : "bg-white/5 border-white/10")}
+                  style={{ '--tw-ring-color': `${theme.accentColor}33` } as any}
                 />
               </div>
               <div className="space-y-1">
@@ -1053,9 +1331,38 @@ function OrderFormModal({ order, onClose, onSubmit, theme }: { order: Order | nu
                   type="number" 
                   value={formData.marketplace_fees}
                   onChange={e => setFormData({...formData, marketplace_fees: parseFloat(e.target.value) || 0})}
-                  className={cn("w-full p-3 rounded-xl border outline-none focus:ring-2 transition-all", theme.accent === 'indigo' ? "ring-indigo-500/20" : theme.accent === 'orange' ? "ring-orange-500/20" : "ring-emerald-500/20", theme.id === 'light' ? "bg-gray-50 border-black/5" : "bg-white/5 border-white/10")}
+                  className={cn("w-full p-3 rounded-xl border outline-none focus:ring-2 transition-all", theme.id === 'light' ? "bg-gray-50 border-black/5" : "bg-white/5 border-white/10")}
+                  style={{ '--tw-ring-color': `${theme.accentColor}33` } as any}
                 />
               </div>
+            </div>
+          </section>
+
+          {/* Section: Returns */}
+          <section className="space-y-4">
+            <h4 className="text-sm font-bold uppercase tracking-widest text-red-500">Returns</h4>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="flex items-center gap-3 p-3 rounded-xl border border-dashed border-red-500/30">
+                <input 
+                  type="checkbox" 
+                  id="is_returned"
+                  checked={formData.is_returned}
+                  onChange={e => setFormData({...formData, is_returned: e.target.checked})}
+                  className="w-5 h-5 rounded accent-red-500 cursor-pointer"
+                />
+                <label htmlFor="is_returned" className="text-sm font-semibold cursor-pointer">Mark as Returned</label>
+              </div>
+              {formData.is_returned && (
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold opacity-50">Return Cost (Shipping/Restocking/etc)</label>
+                  <input 
+                    type="number" 
+                    value={formData.return_cost}
+                    onChange={e => setFormData({...formData, return_cost: parseFloat(e.target.value) || 0})}
+                    className={cn("w-full p-3 rounded-xl border outline-none focus:ring-2 transition-all ring-red-500/20", theme.id === 'light' ? "bg-red-50 border-red-100" : "bg-red-500/5 border-red-500/20")}
+                  />
+                </div>
+              )}
             </div>
           </section>
 
@@ -1072,6 +1379,12 @@ function OrderFormModal({ order, onClose, onSubmit, theme }: { order: Order | nu
               <p className="text-xs font-bold uppercase opacity-50 mb-1">Total Fees</p>
               <p className="text-xl font-bold">{formatCurrency(metrics.totalFees)}</p>
             </div>
+            {formData.is_returned && (
+              <div>
+                <p className="text-xs font-bold uppercase text-red-500 mb-1">Return Cost</p>
+                <p className="text-xl font-bold text-red-500">{formatCurrency(metrics.returnCost)}</p>
+              </div>
+            )}
             <div>
               <p className="text-xs font-bold uppercase opacity-50 mb-1">Net Profit</p>
               <p className={cn("text-2xl font-bold", metrics.netProfit > 0 ? "text-emerald-500" : "text-red-500")}>
@@ -1093,13 +1406,27 @@ function OrderFormModal({ order, onClose, onSubmit, theme }: { order: Order | nu
             Cancel
           </button>
           <button 
-            onClick={() => onSubmit(formData)}
+            onClick={() => {
+              if (saveToCatalog && onSaveProduct) {
+                onSaveProduct({
+                  name: formData.product_name,
+                  source_price: formData.source_price,
+                  sale_price: formData.sale_price,
+                  source_link: formData.source_link,
+                  marketplace_fees: formData.marketplace_fees,
+                  sku: '',
+                  category: ''
+                });
+              }
+              onSubmit(formData);
+            }}
             className={cn(
               "px-8 py-2 text-white rounded-xl font-bold shadow-lg transition-all active:scale-95",
-              theme.accent === 'indigo' ? "bg-indigo-500 shadow-indigo-500/20 hover:bg-indigo-600" : 
-              theme.accent === 'orange' ? "bg-orange-500 shadow-orange-500/20 hover:bg-orange-600" : 
-              "bg-emerald-500 shadow-emerald-500/20 hover:bg-emerald-600"
             )}
+            style={{ 
+              backgroundColor: theme.accentColor,
+              boxShadow: `0 10px 15px -3px ${theme.accentColor}33`
+            }}
           >
             {order ? 'Save Changes' : 'Create Order'}
           </button>
@@ -1131,54 +1458,69 @@ function OrderDetailsModal({ order, onClose, onEdit, onDelete, onDuplicate, them
           theme.card, theme.text
         )}
       >
-        <div className={cn("p-6 border-b flex justify-between items-center", theme.border)}>
-          <div className="flex items-center gap-3">
+        <div className={cn("p-4 md:p-6 border-b flex justify-between items-center", theme.border)}>
+          <div className="flex items-center gap-2 md:gap-3">
             <div className={cn(
-              "w-10 h-10 rounded-xl flex items-center justify-center",
+              "w-8 h-8 md:w-10 md:h-10 rounded-xl flex items-center justify-center",
               theme.id === 'light' ? "bg-emerald-500/10" : "bg-white/5"
             )}>
-              <ShoppingCart className="text-emerald-500" size={20} />
+              <ShoppingCart style={{ color: theme.accentColor }} size={16} className="md:w-5 md:h-5" />
             </div>
             <div>
-              <h3 className="text-xl font-bold">Order Details</h3>
-              <p className={cn("text-xs", theme.muted)}>ID: {order.order_id}</p>
+              <h3 className="text-lg md:text-xl font-bold">Order Details</h3>
+              <p className={cn("text-[10px] md:text-xs", theme.muted)}>ID: {order.order_id}</p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <button onClick={onDuplicate} title="Duplicate" className={cn("p-2 rounded-lg transition-colors text-blue-500", theme.id === 'light' ? "hover:bg-black/5" : "hover:bg-white/5")}>
-              <Copy size={18} />
+          <div className="flex items-center gap-1 md:gap-2">
+            <button onClick={onDuplicate} title="Duplicate" className={cn("p-1.5 md:p-2 rounded-lg transition-colors text-blue-500", theme.id === 'light' ? "hover:bg-black/5" : "hover:bg-white/5")}>
+              <Copy size={16} className="md:w-[18px] md:h-[18px]" />
             </button>
-            <button onClick={onEdit} title="Edit" className={cn("p-2 rounded-lg transition-colors text-orange-500", theme.id === 'light' ? "hover:bg-black/5" : "hover:bg-white/5")}>
-              <Edit2 size={18} />
+            <button onClick={onEdit} title="Edit" className={cn("p-1.5 md:p-2 rounded-lg transition-colors text-orange-500", theme.id === 'light' ? "hover:bg-black/5" : "hover:bg-white/5")}>
+              <Edit2 size={16} className="md:w-[18px] md:h-[18px]" />
             </button>
-            <button onClick={onDelete} title="Delete" className={cn("p-2 rounded-lg transition-colors text-red-500", theme.id === 'light' ? "hover:bg-black/5" : "hover:bg-white/5")}>
-              <Trash2 size={18} />
+            <button onClick={onDelete} title="Delete" className={cn("p-1.5 md:p-2 rounded-lg transition-colors text-red-500", theme.id === 'light' ? "hover:bg-black/5" : "hover:bg-white/5")}>
+              <Trash2 size={16} className="md:w-[18px] md:h-[18px]" />
             </button>
-            <button onClick={onClose} className={cn("p-2 rounded-full transition-colors ml-2", theme.id === 'light' ? "hover:bg-black/5" : "hover:bg-white/5")}>
-              <X size={20} />
+            <button onClick={onClose} className={cn("p-1.5 md:p-2 rounded-full transition-colors ml-1 md:ml-2", theme.id === 'light' ? "hover:bg-black/5" : "hover:bg-white/5")}>
+              <X size={18} className="md:w-5 md:h-5" />
             </button>
           </div>
         </div>
 
-        <div className="p-8 space-y-8 overflow-y-auto max-h-[70vh]">
-          <div className="grid grid-cols-2 gap-8">
+        <div className="p-4 md:p-8 space-y-6 md:space-y-8 overflow-y-auto max-h-[75vh] md:max-h-[70vh]">
+          <div className="grid grid-cols-2 gap-4 md:gap-8">
             <div className="space-y-1">
-              <p className="text-xs font-bold uppercase opacity-50">Product</p>
-              <p className="text-lg font-bold">{order.product_name}</p>
+              <p className="text-[10px] md:text-xs font-bold uppercase opacity-50">Product</p>
+              <p className="text-base md:text-lg font-bold">{order.product_name}</p>
             </div>
             <div className="space-y-1 text-right">
-              <p className="text-xs font-bold uppercase opacity-50">Marketplace</p>
-              <p className="text-lg font-bold">{order.marketplace}</p>
+              <p className="text-[10px] md:text-xs font-bold uppercase opacity-50">Marketplace</p>
+              <p className="text-base md:text-lg font-bold">{order.marketplace}</p>
             </div>
             <div className="space-y-1">
-              <p className="text-xs font-bold uppercase opacity-50">Customer</p>
-              <p className="font-semibold">{order.customer_name || 'N/A'}</p>
+              <p className="text-[10px] md:text-xs font-bold uppercase opacity-50">Customer</p>
+              <p className="text-sm md:text-base font-semibold">{order.customer_name || 'N/A'}</p>
             </div>
             <div className="space-y-1 text-right">
-              <p className="text-xs font-bold uppercase opacity-50">Date</p>
-              <p className="font-semibold">{format(new Date(order.date), 'MMMM d, yyyy')}</p>
+              <p className="text-[10px] md:text-xs font-bold uppercase opacity-50">Date</p>
+              <p className="text-sm md:text-base font-semibold">{format(new Date(order.date), 'MMM d, yyyy')}</p>
             </div>
           </div>
+
+          {order.is_returned && (
+            <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/20 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-lg bg-red-500 flex items-center justify-center text-white">
+                  <ArrowDownRight size={18} />
+                </div>
+                <div>
+                  <p className="text-sm font-bold text-red-500">Order Returned</p>
+                  <p className="text-xs opacity-70">Return costs deducted from profit</p>
+                </div>
+              </div>
+              <p className="text-lg font-bold text-red-500">{formatCurrency(order.return_cost || 0)}</p>
+            </div>
+          )}
 
           <div className={cn(
             "p-6 rounded-2xl grid grid-cols-2 gap-6",
@@ -1243,6 +1585,12 @@ function OrderDetailsModal({ order, onClose, onEdit, onDelete, onDuplicate, them
                       <span>{formatCurrency(order.other_fees)}</span>
                     </div>
                   )}
+                  {order.is_returned && (
+                    <div className="flex justify-between text-[11px] text-red-500 font-bold">
+                      <span>Return Cost</span>
+                      <span>{formatCurrency(order.return_cost || 0)}</span>
+                    </div>
+                  )}
                 </div>
                 <div className="flex justify-between text-sm border-t border-white/10 pt-2">
                   <span className="font-bold">Net Profit</span>
@@ -1262,6 +1610,189 @@ function OrderDetailsModal({ order, onClose, onEdit, onDelete, onDuplicate, them
               </p>
             </div>
           )}
+        </div>
+      </motion.div>
+    </div>
+  );
+}
+
+function ProductCard({ product, onEdit, onDelete, theme, scale = 1 }: { product: Product, onEdit: () => void, onDelete: () => void, theme: any, key?: any, scale?: number }) {
+  return (
+    <motion.div 
+      layout
+      whileHover={{ y: -4 }}
+      className={cn(
+        "rounded-2xl border transition-all duration-300 hover:shadow-2xl group",
+        theme.card, theme.border, theme.id === 'light' ? "shadow-sm hover:shadow-black/5" : "hover:bg-white/5"
+      )}
+      style={{ padding: `${1 * scale}rem` }}
+    >
+      <div className="flex justify-between items-start" style={{ marginBottom: `${0.75 * scale}rem` }}>
+        <div className={cn(
+          "rounded-xl flex items-center justify-center transition-transform duration-500 group-hover:rotate-12",
+          theme.id === 'light' ? "bg-gray-50" : "bg-white/5"
+        )}
+        style={{ width: `${2 * scale}rem`, height: `${2 * scale}rem` }}
+        >
+          <Package style={{ color: theme.accentColor }} size={18 * scale} className="md:w-5 md:h-5" />
+        </div>
+        <div className="flex items-center opacity-0 group-hover:opacity-100 transition-opacity duration-300" style={{ gap: `${0.25 * scale}rem` }}>
+          <button onClick={onEdit} className={cn("rounded-lg transition-colors text-blue-500", theme.id === 'light' ? "hover:bg-black/5" : "hover:bg-white/5")} style={{ padding: `${0.375 * scale}rem` }}>
+            <Edit2 size={14 * scale} className="md:w-4 md:h-4" />
+          </button>
+          <button onClick={onDelete} className={cn("rounded-lg transition-colors text-red-500", theme.id === 'light' ? "hover:bg-black/5" : "hover:bg-white/5")} style={{ padding: `${0.375 * scale}rem` }}>
+            <Trash2 size={14 * scale} className="md:w-4 md:h-4" />
+          </button>
+        </div>
+      </div>
+      <h4 className="font-bold mb-1 transition-all duration-300 group-hover:translate-x-1" style={{ fontSize: `${1 * scale}rem`, color: theme.accentColor }}>{product.name}</h4>
+      <p className={cn("mb-3 transition-opacity duration-300 group-hover:opacity-100", theme.muted)} style={{ fontSize: `${0.625 * scale}rem`, marginBottom: `${1 * scale}rem`, opacity: 0.6 }}>SKU: {product.sku || 'N/A'}</p>
+      
+      <div className="grid grid-cols-2 pt-3 border-t border-black/[0.03] dark:border-white/[0.03] transition-colors duration-300 group-hover:border-solid" style={{ gap: `${0.75 * scale}rem`, paddingTop: `${1 * scale}rem` }}>
+        <div>
+          <p className={cn("uppercase font-bold opacity-50", theme.muted)} style={{ fontSize: `${0.5625 * scale}rem`, marginBottom: `${0.125 * scale}rem` }}>Source Price</p>
+          <p className="font-bold transition-colors duration-300 group-hover:text-emerald-500" style={{ fontSize: `${0.875 * scale}rem` }}>{formatCurrency(product.source_price)}</p>
+        </div>
+        <div className="text-right">
+          <p className={cn("uppercase font-bold opacity-50", theme.muted)} style={{ fontSize: `${0.5625 * scale}rem`, marginBottom: `${0.125 * scale}rem` }}>Retail Price</p>
+          <p className="font-bold transition-transform duration-300 group-hover:scale-110 origin-right" style={{ fontSize: `${0.875 * scale}rem` }}>{formatCurrency(product.sale_price)}</p>
+        </div>
+      </div>
+    </motion.div>
+  );
+}
+
+function ProductFormModal({ product, onClose, onSubmit, theme }: { product: Product | null, onClose: () => void, onSubmit: (data: Omit<Product, 'id'>) => void, theme: any }) {
+  const [formData, setFormData] = useState<Omit<Product, 'id'>>(product ? {
+    name: product.name,
+    sku: product.sku || '',
+    source_price: product.source_price,
+    sale_price: product.sale_price,
+    source_link: product.source_link || '',
+    marketplace_fees: product.marketplace_fees || 0,
+    category: product.category || ''
+  } : {
+    name: '',
+    sku: '',
+    source_price: 0,
+    sale_price: 0,
+    source_link: '',
+    marketplace_fees: 0,
+    category: ''
+  });
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <motion.div 
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        onClick={onClose}
+        className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+      />
+      <motion.div 
+        initial={{ opacity: 0, scale: 0.9, y: 20 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.9, y: 20 }}
+        className={cn(
+          "relative w-full max-w-2xl rounded-3xl shadow-2xl flex flex-col",
+          theme.card, theme.text
+        )}
+      >
+        <div className={cn("p-4 md:p-6 border-b flex justify-between items-center", theme.border)}>
+          <h3 className="text-lg md:text-xl font-bold">{product ? 'Edit Product' : 'New Product'}</h3>
+          <button onClick={onClose} className={cn("p-2 rounded-full transition-colors", theme.id === 'light' ? "hover:bg-black/5" : "hover:bg-white/5")}>
+            <X size={18} className="md:w-5 md:h-5" />
+          </button>
+        </div>
+
+        <div className="p-4 md:p-6 space-y-4 md:space-y-6">
+          <div className="space-y-1">
+            <label className="text-xs font-semibold opacity-50">Product Name</label>
+            <input 
+              type="text" 
+              required
+              value={formData.name}
+              onChange={e => setFormData({...formData, name: e.target.value})}
+              className={cn("w-full p-3 rounded-xl border outline-none focus:ring-2 transition-all", theme.id === 'light' ? "bg-gray-50 border-black/5" : "bg-white/5 border-white/10")}
+              style={{ '--tw-ring-color': `${theme.accentColor}33` } as any}
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1">
+              <label className="text-xs font-semibold opacity-50">SKU (Optional)</label>
+              <input 
+                type="text" 
+                value={formData.sku}
+                onChange={e => setFormData({...formData, sku: e.target.value})}
+                className={cn("w-full p-3 rounded-xl border outline-none focus:ring-2 transition-all", theme.id === 'light' ? "bg-gray-50 border-black/5" : "bg-white/5 border-white/10")}
+                style={{ '--tw-ring-color': `${theme.accentColor}33` } as any}
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-semibold opacity-50">Category</label>
+              <input 
+                type="text" 
+                value={formData.category}
+                onChange={e => setFormData({...formData, category: e.target.value})}
+                className={cn("w-full p-3 rounded-xl border outline-none focus:ring-2 transition-all", theme.id === 'light' ? "bg-gray-50 border-black/5" : "bg-white/5 border-white/10")}
+                style={{ '--tw-ring-color': `${theme.accentColor}33` } as any}
+              />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1">
+              <label className="text-xs font-semibold opacity-50">Source Price</label>
+              <input 
+                type="number" 
+                value={formData.source_price}
+                onChange={e => setFormData({...formData, source_price: parseFloat(e.target.value) || 0})}
+                className={cn("w-full p-3 rounded-xl border outline-none focus:ring-2 transition-all", theme.id === 'light' ? "bg-gray-50 border-black/5" : "bg-white/5 border-white/10")}
+                style={{ '--tw-ring-color': `${theme.accentColor}33` } as any}
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-semibold opacity-50">Retail Price</label>
+              <input 
+                type="number" 
+                value={formData.sale_price}
+                onChange={e => setFormData({...formData, sale_price: parseFloat(e.target.value) || 0})}
+                className={cn("w-full p-3 rounded-xl border outline-none focus:ring-2 transition-all", theme.id === 'light' ? "bg-gray-50 border-black/5" : "bg-white/5 border-white/10")}
+                style={{ '--tw-ring-color': `${theme.accentColor}33` } as any}
+              />
+            </div>
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs font-semibold opacity-50">Source Link (Optional)</label>
+            <input 
+              type="url" 
+              value={formData.source_link}
+              onChange={e => setFormData({...formData, source_link: e.target.value})}
+              className={cn("w-full p-3 rounded-xl border outline-none focus:ring-2 transition-all", theme.id === 'light' ? "bg-gray-50 border-black/5" : "bg-white/5 border-white/10")}
+              style={{ '--tw-ring-color': `${theme.accentColor}33` } as any}
+            />
+          </div>
+        </div>
+
+        <div className={cn("p-6 border-t flex justify-end gap-3", theme.border)}>
+          <button 
+            onClick={onClose}
+            className={cn("px-6 py-2 rounded-xl font-semibold transition-all", theme.id === 'light' ? "hover:bg-black/5" : "hover:bg-white/5")}
+          >
+            Cancel
+          </button>
+          <button 
+            onClick={() => onSubmit(formData)}
+            className={cn(
+              "px-8 py-2 text-white rounded-xl font-bold shadow-lg transition-all active:scale-95",
+            )}
+            style={{ 
+              backgroundColor: theme.accentColor,
+              boxShadow: `0 10px 15px -3px ${theme.accentColor}33`
+            }}
+          >
+            {product ? 'Save Changes' : 'Add Product'}
+          </button>
         </div>
       </motion.div>
     </div>

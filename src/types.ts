@@ -17,6 +17,19 @@ export interface Order {
   advertising_cost: number;
   other_fees: number;
   currency: string;
+  is_returned?: boolean;
+  return_cost?: number;
+}
+
+export interface Product {
+  id: string;
+  name: string;
+  sku?: string;
+  source_price: number;
+  sale_price: number;
+  source_link?: string;
+  marketplace_fees?: number;
+  category?: string;
 }
 
 export interface Stats {
@@ -60,7 +73,7 @@ export const CURRENCIES = [
   { code: 'AUD', symbol: 'A$' },
 ];
 
-export type ThemeType = 'light' | 'dark' | 'midnight' | 'forest' | 'sunset';
+export type ThemeType = 'light' | 'dark' | 'midnight' | 'forest' | 'sunset' | 'nord' | 'rose' | 'slate';
 
 export interface ThemeConfig {
   id: ThemeType;
@@ -71,57 +84,96 @@ export interface ThemeConfig {
   muted: string;
   border: string;
   accent: string;
+  accentColor: string;
 }
 
 export const THEMES: ThemeConfig[] = [
   {
     id: 'light',
-    name: 'Light',
-    bg: 'bg-[#F8F9FA]',
+    name: 'Pristine',
+    bg: 'bg-[#F8FAFC]',
     card: 'bg-white',
-    text: 'text-[#1A1A1A]',
-    muted: 'text-black/50',
-    border: 'border-black/5',
-    accent: 'emerald'
+    text: 'text-[#0F172A]',
+    muted: 'text-slate-500',
+    border: 'border-slate-200/60',
+    accent: 'emerald',
+    accentColor: '#10b981'
   },
   {
     id: 'dark',
-    name: 'Dark',
-    bg: 'bg-[#0A0A0A]',
-    card: 'bg-[#111111]',
-    text: 'text-white',
-    muted: 'text-white/50',
-    border: 'border-white/10',
-    accent: 'emerald'
+    name: 'Onyx',
+    bg: 'bg-[#020617]',
+    card: 'bg-[#0F172A]',
+    text: 'text-slate-50',
+    muted: 'text-slate-400',
+    border: 'border-slate-800/50',
+    accent: 'emerald',
+    accentColor: '#10b981'
   },
   {
     id: 'midnight',
     name: 'Midnight',
-    bg: 'bg-[#020617]',
-    card: 'bg-[#0f172a]',
-    text: 'text-slate-50',
-    muted: 'text-slate-400',
-    border: 'border-slate-800',
-    accent: 'indigo'
+    bg: 'bg-[#000000]',
+    card: 'bg-[#0A0A0A]',
+    text: 'text-zinc-100',
+    muted: 'text-zinc-500',
+    border: 'border-zinc-800/80',
+    accent: 'indigo',
+    accentColor: '#6366f1'
+  },
+  {
+    id: 'nord',
+    name: 'Nordic',
+    bg: 'bg-[#2E3440]',
+    card: 'bg-[#3B4252]',
+    text: 'text-[#ECEFF4]',
+    muted: 'text-[#D8DEE9]/60',
+    border: 'border-[#4C566A]/50',
+    accent: 'indigo',
+    accentColor: '#88C0D0'
+  },
+  {
+    id: 'rose',
+    name: 'Rose Gold',
+    bg: 'bg-[#FFF1F2]',
+    card: 'bg-white',
+    text: 'text-[#4C0519]',
+    muted: 'text-[#9F1239]/50',
+    border: 'border-[#FDA4AF]/30',
+    accent: 'rose',
+    accentColor: '#E11D48'
+  },
+  {
+    id: 'slate',
+    name: 'Slate',
+    bg: 'bg-[#F1F5F9]',
+    card: 'bg-white',
+    text: 'text-[#0F172A]',
+    muted: 'text-[#64748B]',
+    border: 'border-[#E2E8F0]',
+    accent: 'indigo',
+    accentColor: '#6366f1'
   },
   {
     id: 'forest',
-    name: 'Forest',
-    bg: 'bg-[#052e16]',
+    name: 'Evergreen',
+    bg: 'bg-[#022c22]',
     card: 'bg-[#064e3b]',
     text: 'text-emerald-50',
-    muted: 'text-emerald-400/70',
-    border: 'border-emerald-800',
-    accent: 'emerald'
+    muted: 'text-emerald-400/60',
+    border: 'border-emerald-800/40',
+    accent: 'emerald',
+    accentColor: '#34d399'
   },
   {
     id: 'sunset',
-    name: 'Sunset',
+    name: 'Crimson',
     bg: 'bg-[#450a0a]',
     card: 'bg-[#7f1d1d]',
     text: 'text-orange-50',
-    muted: 'text-orange-300/70',
-    border: 'border-orange-900',
-    accent: 'orange'
+    muted: 'text-orange-300/60',
+    border: 'border-orange-900/40',
+    accent: 'orange',
+    accentColor: '#fb923c'
   }
 ];
