@@ -28,7 +28,9 @@ import {
   Moon,
   Palette,
   Package,
-  Maximize2
+  Maximize2,
+  Volume2,
+  VolumeX
 } from 'lucide-react';
 import { 
   LineChart, 
@@ -46,16 +48,25 @@ import { useOrders } from './hooks/useOrders';
 import { useProducts } from './hooks/useProducts';
 import { Order, Product, MARKETPLACES, CURRENCIES, MARKETPLACE_FEES, THEMES, ThemeType } from './types';
 import { cn, formatCurrency, calculateOrderMetrics } from './utils';
-import { setupGlobalClickSound } from './utils/sound';
+import { setupGlobalClickSound, setMuted } from './utils/sound';
 
 export default function App() {
   const { orders, stats, loading: ordersLoading, addOrder, updateOrder, deleteOrder } = useOrders();
   const { products, loading: productsLoading, addProduct, updateProduct, deleteProduct } = useProducts();
+  const [isMuted, setIsMuted] = useState(() => {
+    const saved = localStorage.getItem('isMuted');
+    return saved === 'true';
+  });
   
   useEffect(() => {
     const cleanup = setupGlobalClickSound();
     return cleanup;
   }, []);
+
+  useEffect(() => {
+    setMuted(isMuted);
+    localStorage.setItem('isMuted', String(isMuted));
+  }, [isMuted]);
   const [view, setView] = useState<'dashboard' | 'orders' | 'products'>('dashboard');
   const [searchQuery, setSearchQuery] = useState('');
   const [filterMarketplace, setFilterMarketplace] = useState('All');

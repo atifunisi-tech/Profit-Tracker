@@ -3,8 +3,16 @@
  */
 
 let audioCtx: AudioContext | null = null;
+let isMuted = false;
+
+export const setMuted = (muted: boolean) => {
+  isMuted = muted;
+};
+
+export const getMuted = () => isMuted;
 
 export const playClickSound = () => {
+  if (isMuted) return;
   try {
     if (!audioCtx) {
       audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
