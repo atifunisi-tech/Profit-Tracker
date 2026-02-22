@@ -46,10 +46,16 @@ import { useOrders } from './hooks/useOrders';
 import { useProducts } from './hooks/useProducts';
 import { Order, Product, MARKETPLACES, CURRENCIES, MARKETPLACE_FEES, THEMES, ThemeType } from './types';
 import { cn, formatCurrency, calculateOrderMetrics } from './utils';
+import { setupGlobalClickSound } from './utils/sound';
 
 export default function App() {
   const { orders, stats, loading: ordersLoading, addOrder, updateOrder, deleteOrder } = useOrders();
   const { products, loading: productsLoading, addProduct, updateProduct, deleteProduct } = useProducts();
+  
+  useEffect(() => {
+    const cleanup = setupGlobalClickSound();
+    return cleanup;
+  }, []);
   const [view, setView] = useState<'dashboard' | 'orders' | 'products'>('dashboard');
   const [searchQuery, setSearchQuery] = useState('');
   const [filterMarketplace, setFilterMarketplace] = useState('All');
